@@ -1,10 +1,48 @@
 # 多集群
 ## 接口
-GET /capis/cluster.captain.io/clusters\
-GET /capis/cluster.captain.io/clusters/{name}\
-POST /capis/cluster.captain.io/clusters\
-DELETE /capis/cluster.captain.io/clusters/{name}\
-PUT /capis/cluster.captain.io/clusters/{name}
+GET /capis/cluster.captain.io/v1alpha1/clusters\
+GET /capis/cluster.captain.io/v1alpha1/clusters/{name}\
+POST /capis/cluster.captain.io/v1alpha1/clusters\
+DELETE /capis/cluster.captain.io/v1alpha1/clusters/{name}\
+PUT /capis/cluster.captain.io/v1alpha1/clusters/{name}
+
+## Cluster
+```yaml
+apiVersion: cluster.captain.io/v1alpha1
+kind: Cluster
+metadata:
+  annotations:
+    captainManaged.io/description: The description was created by Captain automatically.
+      It is recommended that you use the Host Cluster to manage clusters only and
+      deploy workloads on Member Clusters.
+  creationTimestamp: "2022-10-09T07:11:46Z"
+  finalizers:
+  - finalizer.cluster.captain.io
+  generation: 5
+  labels:
+    captain.io/managed: "true"
+    cluster-role.captain.io/host: ""
+  name: host
+  resourceVersion: "9366214"
+  uid: faded5d5-a3b2-462b-b006-954e92ab047c
+spec:
+  connection:
+    kubeconfig: XXXX(base64)
+    kubernetesAPIEndpoint: https://xxx.xx.xx.xx:6443
+    type: direct
+  enable: true
+  provider: captain
+status:
+  conditions:
+  - lastTransitionTime: "2022-10-09T07:15:46Z"
+    lastUpdateTime: "2022-10-09T07:15:46Z"
+    message: Cluster is available now
+    reason: Ready
+    status: "True"
+    type: Ready
+  kubernetesVersion: v1.23.6
+  nodeCount: 7
+```
 
 ## 多集群代理接口
 /regions/{region}/cluster/{name}/...\
