@@ -22,6 +22,18 @@ type Options struct {
 
 	// HostClusterName is the name of the control plane cluster, default set to host.
 	HostClusterName string `json:"hostClusterName,omitempty" yaml:"hostClusterName"`
+
+	Karmada KarmadaConfig `json:"karmada,omitempty" yaml:"karmada"`
+}
+
+type KarmadaConfig struct {
+	KubeImageRegistry               string `json:"kubeImageRegistry,omitempty" yaml:"kubeImageRegistry"`
+	EtcdImage                       string `json:"etcdImage,omitempty" yaml:"etcdImage"`
+	EtcdInitImage                   string `json:"etcdInitImage,omitempty" yaml:"etcdInitImage"`
+	KarmadaSchedulerImage           string `json:"karmadaSchedulerImage,omitempty" yaml:"karmadaSchedulerImage"`
+	KarmadaControllerManagerImage   string `json:"karmadaControllerManagerImage,omitempty" yaml:"karmadaControllerManagerImage"`
+	KarmadaWebhookImage             string `json:"karmadaWebhookImage,omitempty" yaml:"karmadaWebhookImage"`
+	KarmadaAggregatedAPIServerImage string `json:"karmadaAggregatedAPIServerImage,omitempty" yaml:"karmadaAggregatedAPIServerImage"`
 }
 
 // NewOptions returns a default nil options

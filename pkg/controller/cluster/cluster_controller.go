@@ -33,6 +33,8 @@ import (
 	clusterclient "captain/pkg/client/clientset/versioned/typed/cluster/v1alpha1"
 	clusterinformer "captain/pkg/client/informers/externalversions/cluster/v1alpha1"
 	clusterlister "captain/pkg/client/listers/cluster/v1alpha1"
+	karmadainit "captain/pkg/controller/cluster/karmada/init"
+	"captain/pkg/simple/client/multicluster"
 	"captain/pkg/version"
 )
 
@@ -77,11 +79,13 @@ var hostCluster = &clusterv1alpha1.Cluster{
 		},
 		Labels: map[string]string{
 			clusterv1alpha1.HostCluster: "",
-			captainManaged:             "true",
+			captainManaged:              "true",
 		},
 	},
 	Spec: clusterv1alpha1.ClusterSpec{
-		// JoinFederation: true,
+		MultiCluster: clusterv1alpha1.MultiClusterConfig{
+			InstallKarmada: true,
+		},
 		Enable:   true,
 		Provider: "captain",
 		Connection: clusterv1alpha1.Connection{
@@ -127,9 +131,7 @@ type clusterController struct {
 
 	clusterMap map[string]*clusterData
 
-	resyncPeriod time.Duration
-
-	hostClusterNmae string
+	options *multicluster.Options
 }
 
 func NewClusterController(
@@ -137,8 +139,7 @@ func NewClusterController(
 	config *rest.Config,
 	clusterInformer clusterinformer.ClusterInformer,
 	clusterClient clusterclient.ClusterInterface,
-	resyncPeriod time.Duration,
-	hostClusterName string,
+	options *multicluster.Options,
 ) *clusterController {
 
 	broadcaster := record.NewBroadcaster()
@@ -157,19 +158,16 @@ func NewClusterController(
 		queue:            workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "cluster"),
 		workerLoopPeriod: time.Second,
 		clusterMap:       make(map[string]*clusterData),
-		resyncPeriod:     resyncPeriod,
-		hostClusterNmae:  hostClusterName,
+		options:          options,
 	}
 	c.clusterLister = clusterInformer.Lister()
 	c.clusterHasSynced = clusterInformer.Informer().HasSynced
 
 	clusterInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
-		AddFunc: c.addCluster,
-		UpdateFunc: func(oldObj, newObj interface{}) {
-			c.addCluster(newObj)
-		},
+		AddFunc:    c.addCluster,
+		UpdateFunc: c.updateCluster,
 		DeleteFunc: c.addCluster,
-	}, resyncPeriod)
+	}, options.ClusterControllerResyncPeriod)
 
 	return c
 }
@@ -203,7 +201,7 @@ func (c *clusterController) Run(workers int, stopCh <-chan struct{}) error {
 			klog.Errorf("failed to reconcile cluster ready status, err: %v", err)
 		}
 
-	}, c.resyncPeriod, stopCh)
+	}, c.options.ClusterControllerResyncPeriod, stopCh)
 
 	<-stopCh
 	return nil
@@ -276,7 +274,7 @@ func (c *clusterController) reconcileHostCluster() error {
 	// no host cluster, create one
 	if len(clusters) == 0 {
 		hostCluster.Spec.Connection.KubeConfig = hostKubeConfig
-		hostCluster.Name = c.hostClusterNmae
+		hostCluster.Name = c.options.HostClusterName
 		_, err = c.clusterClient.Create(context.TODO(), hostCluster, metav1.CreateOptions{})
 		return err
 	} else if len(clusters) > 1 {
@@ -385,6 +383,8 @@ func (c *clusterController) probeClusters() error {
 }
 
 func (c *clusterController) syncCluster(key string) error {
+	fmt.Println("===============================>", key)
+
 	klog.V(5).Infof("starting to sync cluster %s", key)
 	startTime := time.Now()
 
@@ -456,7 +456,40 @@ func (c *clusterController) syncCluster(key string) error {
 	}
 	c.mu.Unlock()
 
-	// TODO: add cluster federation
+	// karamada host
+	if cluster.Spec.MultiCluster.InstallKarmada {
+		// install karmada
+		config, token, err := karmadainit.InstallKarmada(clusterDt.config, cluster, c.options)
+		if err != nil {
+			klog.V(4).Info("install karamda on %s err: %s, try to uninstall karmada on this cluster.", cluster.Name, err.Error())
+			unInstallKarmada(clusterDt.config)
+			return err
+		}
+		cluster.Status.Karmada.Config = config
+		cluster.Status.Karmada.BootstrapToken = token
+		if err = c.updateClusterStatus(cluster); err != nil {
+			return fmt.Errorf("error when updateClusterStatus, err: %v", err)
+		}
+	} else {
+		// uninstall karmada
+		/*err = unInstallKarmada(clusterDt.config)
+		if err != nil {
+			return err
+		}*/
+	}
+
+	// karmada member
+	/*if cluster.Spec.MultiCluster.JoinKarmada {
+		err = joinKarmada(c.hostConfig, clusterDt.config, cluster)
+		if err != nil {
+			return err
+		}
+	} else {
+		err = unJoinKarmada(c.hostConfig, clusterDt.config, cluster)
+		if err != nil {
+			return err
+		}
+	}*/
 
 	// cluster is ready, we can pull kubernetes cluster info through agent
 	// since there is no agent necessary for host cluster, so updates for host cluster
@@ -571,7 +604,6 @@ func (c *clusterController) tryToFetchCaptainComponents(host string, transport h
 	return configz, nil
 }
 
-//
 func (c *clusterController) tryFetchCaptainVersion(host string, transport http.RoundTripper) (string, error) {
 	client := http.Client{
 		Transport: transport,
@@ -621,6 +653,36 @@ func (c *clusterController) addCluster(obj interface{}) {
 	c.queue.Add(key)
 }
 
+func (c *clusterController) updateCluster(oldObj, newObj interface{}) {
+	oldCluster := oldObj.(*clusterv1alpha1.Cluster)
+	newCluster := newObj.(*clusterv1alpha1.Cluster)
+	if isNeedSync(oldCluster, newCluster) {
+		c.addCluster(newObj)
+	} else {
+		klog.V(4).Infof("skip sync cluster: %s.", newCluster.Name)
+	}
+}
+
+// isNeedSync 用isNeedSync判断cluster资源更新前后的变化，是否需要进行同步操作
+// 将不需要同步的cluster跳过，以此节省计算资源
+func isNeedSync(old, new *clusterv1alpha1.Cluster) bool {
+	// need delete
+	if new.DeletionTimestamp != nil {
+		return true
+	}
+	if new.Spec.Enable != old.Spec.Enable || new.Spec.MultiCluster != old.Spec.MultiCluster {
+		return true
+	}
+
+	if string(new.Spec.Connection.KubeConfig) != string(old.Spec.Connection.KubeConfig) ||
+		new.Spec.Connection.Type != old.Spec.Connection.Type {
+		return true
+	}
+
+	// status 变化不触发sync
+	return false
+}
+
 func (c *clusterController) handleErr(err error, key interface{}) {
 	if err == nil {
 		c.queue.Forget(key)
@@ -628,7 +690,7 @@ func (c *clusterController) handleErr(err error, key interface{}) {
 	}
 
 	if c.queue.NumRequeues(key) < maxRetries {
-		klog.V(2).Infof("Error syncing cluster %s, retrying, %v", key, err)
+		klog.Errorf("Error syncing cluster %s, retrying, %v", key, err)
 		c.queue.AddRateLimited(key)
 		return
 	}
@@ -665,4 +727,11 @@ func (c *clusterController) updateClusterCondition(cluster *clusterv1alpha1.Clus
 
 	newConditions = append(newConditions, condition)
 	cluster.Status.Conditions = newConditions
+}
+
+func (c *clusterController) updateClusterStatus(cluster *clusterv1alpha1.Cluster) error {
+	if _, err := c.clusterClient.UpdateStatus(context.Background(), cluster, metav1.UpdateOptions{}); err != nil {
+		return err
+	}
+	return nil
 }

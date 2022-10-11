@@ -41,6 +41,9 @@ type ClusterSpec struct {
 	// Join cluster as a kubefed cluster
 	JoinFederation bool `json:"joinFederation,omitempty"`
 
+	// as a karmada member cluster, as a karmada host cluster or both are
+	MultiCluster MultiClusterConfig `json:"multiCluster,omitempty"`
+
 	// Desired state of the cluster
 	Enable bool `json:"enable,omitempty"`
 
@@ -49,6 +52,13 @@ type ClusterSpec struct {
 
 	// Connection holds info to connect to the member cluster
 	Connection Connection `json:"connection,omitempty"`
+}
+
+type MultiClusterConfig struct {
+	// as a karmada member cluster
+	JoinKarmada bool `json:"joinKarmada,omitempty"`
+	// as a karmada host cluster
+	InstallKarmada bool `json:"installKarmada,omitempty"`
 }
 
 type ConnectionType string
@@ -140,6 +150,8 @@ type ClusterStatus struct {
 	// GitVersion of the /kapis/version api response, this field is populated by cluster controller
 	CaptainVersion string `json:"captainVersion,omitempty"`
 
+	Karmada KarmadaStatus `json:"karmadaStatus,omitempty"`
+
 	// Count of the kubernetes cluster nodes
 	// This field may not reflect the instant status of the cluster.
 	NodeCount int `json:"nodeCount,omitempty"`
@@ -157,6 +169,21 @@ type ClusterStatus struct {
 	// +optional
 	Configz map[string]bool `json:"configz,omitempty"`
 }
+
+type KarmadaStatus struct {
+	State          string `json:"state,omitempty"`
+	Config         []byte `json:"config,omitempty"`
+	BootstrapToken string `json:"bootstrapToken,omitempty"`
+}
+
+const (
+	MultiClusterHostInstalling   = "installing"
+	MultiClusterHostInstalled    = "installed"
+	MultiClusterHostUnInstalling = "unInstalling"
+	MultiClusterHostUnInstalled  = ""
+	MultiClusterMembeJoin        = "join"
+	MultiClusterMembeUnJoin      = ""
+)
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
