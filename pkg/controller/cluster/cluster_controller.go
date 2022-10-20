@@ -35,6 +35,7 @@ import (
 	clusterlister "captain/pkg/client/listers/cluster/v1alpha1"
 	karmadainit "captain/pkg/controller/cluster/karmada/init"
 	"captain/pkg/simple/client/multicluster"
+	baseutil "captain/pkg/utils/base"
 	"captain/pkg/version"
 )
 
@@ -56,7 +57,7 @@ const (
 
 	// kubefedNamespace  = "kube-federation-system"
 	// openpitrixRuntime = "openpitrix.io/runtime"
-	captainManaged    = "captain.io/managed"
+	captainManaged = "captain.io/managed"
 
 	// proxy format
 	proxyFormat = "%s/api/v1/namespaces/captain-system/services/:captain-apiserver:80/proxy/%s"
@@ -83,11 +84,9 @@ var hostCluster = &clusterv1alpha1.Cluster{
 		},
 	},
 	Spec: clusterv1alpha1.ClusterSpec{
-		MultiCluster: clusterv1alpha1.MultiClusterConfig{
-			InstallKarmada: true,
-		},
-		Enable:   true,
-		Provider: "captain",
+		JoinFederation: true,
+		Enable:         true,
+		Provider:       "captain",
 		Connection: clusterv1alpha1.Connection{
 			Type: clusterv1alpha1.ConnectionTypeDirect,
 		},
@@ -456,26 +455,22 @@ func (c *clusterController) syncCluster(key string) error {
 	}
 	c.mu.Unlock()
 
-	// karamada host
-	if cluster.Spec.MultiCluster.InstallKarmada {
-		// install karmada
-		config, token, err := karmadainit.InstallKarmada(clusterDt.config, cluster, c.options)
-		if err != nil {
-			klog.V(4).Info("install karamda on %s err: %s, try to uninstall karmada on this cluster.", cluster.Name, err.Error())
-			unInstallKarmada(clusterDt.config)
-			return err
+	for _, appName := range cluster.Spec.Applications {
+		switch appName {
+		case "karmada":
+			// install karmada
+			config, token, err := karmadainit.InstallKarmada(clusterDt.config, cluster, c.options)
+			if err != nil {
+				klog.V(4).Info("install karamda on %s err: %s, try to uninstall karmada on this cluster.", cluster.Name, err.Error())
+				unInstallKarmada(clusterDt.config)
+				return err
+			}
+			cluster.Status.Karmada.Config = config
+			cluster.Status.Karmada.BootstrapToken = token
+			if err = c.updateClusterStatus(cluster); err != nil {
+				return fmt.Errorf("error when updateClusterStatus, err: %v", err)
+			}
 		}
-		cluster.Status.Karmada.Config = config
-		cluster.Status.Karmada.BootstrapToken = token
-		if err = c.updateClusterStatus(cluster); err != nil {
-			return fmt.Errorf("error when updateClusterStatus, err: %v", err)
-		}
-	} else {
-		// uninstall karmada
-		/*err = unInstallKarmada(clusterDt.config)
-		if err != nil {
-			return err
-		}*/
 	}
 
 	// karmada member
@@ -670,7 +665,10 @@ func isNeedSync(old, new *clusterv1alpha1.Cluster) bool {
 	if new.DeletionTimestamp != nil {
 		return true
 	}
-	if new.Spec.Enable != old.Spec.Enable || new.Spec.MultiCluster != old.Spec.MultiCluster {
+	if new.Spec.Enable != old.Spec.Enable {
+		return true
+	}
+	if baseutil.IsSameSlice(new.Spec.Applications, old.Spec.Applications) {
 		return true
 	}
 

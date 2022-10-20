@@ -17,10 +17,9 @@ import (
 	bootstraputil "k8s.io/cluster-bootstrap/token/util"
 	"k8s.io/klog"
 
-	karmadautil "github.com/karmada-io/karmada/pkg/util"
-	"github.com/karmada-io/karmada/pkg/util/lifted/pubkeypin"
-
+	caputil "captain/pkg/utils"
 	clientcertutil "captain/pkg/utils/cert"
+	"captain/pkg/utils/lifted/pubkeypin"
 )
 
 const (
@@ -188,7 +187,7 @@ func UpdateOrCreateToken(client kubeclient.Interface, failIfExists bool, token *
 	updatedOrNewSecret := ConvertBootstrapTokenToSecret(token)
 	// Try to create or update the token with an exponential backoff
 	err = TryRunCommand(func() error {
-		if err := karmadautil.CreateOrUpdateSecret(client, updatedOrNewSecret); err != nil {
+		if err := caputil.CreateOrUpdateSecret(client, updatedOrNewSecret); err != nil {
 			return fmt.Errorf("failed to create or update bootstrap token with name %s, err: %w", secretName, err)
 		}
 		return nil

@@ -41,9 +41,6 @@ type ClusterSpec struct {
 	// Join cluster as a kubefed cluster
 	JoinFederation bool `json:"joinFederation,omitempty"`
 
-	// as a karmada member cluster, as a karmada host cluster or both are
-	MultiCluster MultiClusterConfig `json:"multiCluster,omitempty"`
-
 	// Desired state of the cluster
 	Enable bool `json:"enable,omitempty"`
 
@@ -52,13 +49,9 @@ type ClusterSpec struct {
 
 	// Connection holds info to connect to the member cluster
 	Connection Connection `json:"connection,omitempty"`
-}
 
-type MultiClusterConfig struct {
-	// as a karmada member cluster
-	JoinKarmada bool `json:"joinKarmada,omitempty"`
-	// as a karmada host cluster
-	InstallKarmada bool `json:"installKarmada,omitempty"`
+	// Applications need installed on this cluster
+	Applications []string `json:"applications,omitempty"`
 }
 
 type ConnectionType string

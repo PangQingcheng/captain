@@ -8,13 +8,16 @@ import (
 	"net/http"
 	"os"
 	"strings"
+
+	"sigs.k8s.io/yaml"
 )
 
 const (
 	// Query the IP address of the current host accessing the Internet
 	getInternetIPUrl = "https://myexternalip.com/raw"
 	// A split symbol that receives multiple values from a command flag
-	separator = ","
+	separator      = ","
+	labelSeparator = "="
 )
 
 // StringToNetIP String To NetIP
@@ -71,4 +74,26 @@ func MapToString(labels map[string]string) string {
 func IsExist(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+// StringToMap  string to label
+func StringToMap(labels string) map[string]string {
+	l := map[string]string{}
+	slice := strings.Split(labels, labelSeparator)
+	if len(slice) != 2 {
+		return nil
+	}
+
+	l[slice[0]] = slice[1]
+	return l
+}
+
+// StaticYamlToJSONByte  Static yaml file conversion JSON Byte
+func StaticYamlToJSONByte(staticYaml string) []byte {
+	jsonByte, err := yaml.YAMLToJSON([]byte(staticYaml))
+	if err != nil {
+		fmt.Println("Error convert string to json byte.")
+		os.Exit(1)
+	}
+	return jsonByte
 }

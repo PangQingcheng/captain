@@ -1,9 +1,8 @@
 package init
 
 import (
+	"captain/pkg/controller/cluster/karmada/init/options"
 	"captain/pkg/utils/cert"
-
-	"github.com/karmada-io/karmada/pkg/karmadactl/cmdinit/options"
 )
 
 type KarmadaCerts struct {

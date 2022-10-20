@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/karmada-io/karmada/pkg/karmadactl/cmdinit/options"
+	"captain/pkg/controller/cluster/karmada/init/options"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"

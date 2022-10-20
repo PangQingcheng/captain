@@ -5,7 +5,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 
-	"github.com/karmada-io/karmada/pkg/karmadactl/cmdinit/utils"
+	"captain/pkg/controller/cluster/karmada/utils"
 )
 
 const (

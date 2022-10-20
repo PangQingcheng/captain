@@ -11,8 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/karmada-io/karmada/pkg/karmadactl/cmdinit/bootstraptoken/clusterinfo"
-	"github.com/karmada-io/karmada/pkg/karmadactl/cmdinit/options"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -25,6 +23,8 @@ import (
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	"sigs.k8s.io/yaml"
 
+	"captain/pkg/controller/cluster/karmada/init/bootstraptoken/clusterinfo"
+	"captain/pkg/controller/cluster/karmada/init/options"
 	"captain/pkg/controller/cluster/karmada/utils"
 )
 
